@@ -1,0 +1,498 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum ArticleStatus {
+  DRAFT
+  GENERATED
+  PENDING_REVIEW
+  PUBLISHED
+  FAILED
+}
+
+enum ArticleSourceType {
+  URL
+  DOCUMENT
+}
+
+enum SocialPostStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SCHEDULED
+  PUBLISHED
+  FAILED
+  SENT_TO_ZAPIER
+}
+
+enum SocialAssetGenerationType {
+  POST
+  STORY
+  CAROUSEL
+}
+
+enum SocialAssetUploadStatus {
+  PENDING
+  LOCAL_ONLY
+  UPLOADING
+  UPLOADED
+  FAILED
+}
+
+enum SocialPlatform {
+  INSTAGRAM
+}
+
+enum InstagramAccountType {
+  BUSINESS
+  CREATOR
+}
+
+enum UploadedDocumentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum JobStatus {
+  SUCCESS
+  FAILED
+  RUNNING
+}
+
+enum ApiUsageStatus {
+  SUCCESS
+  FAILED
+}
+
+enum AiProvider {
+  MOCK
+  AZURE_OPENAI
+}
+
+enum DocumentExtractionProvider {
+  MOCK
+  AZURE_DOCUMENT_INTELLIGENCE
+}
+
+enum ImageGenerationProvider {
+  MOCK
+  OPENAI
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  role         UserRole @default(EDITOR)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  articleRevisions ArticleRevision[]
+  jobLogs          JobLog[]
+  apiUsageLogs     ApiUsageLog[]
+  instagramAccounts InstagramAccount[]
+
+  @@map("users")
+}
+
+model SourceUrl {
+  id            String    @id @default(cuid())
+  title         String
+  url           String    @unique
+  category      String?
+  isActive      Boolean   @default(true)
+  lastFetchedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  extractedContents ExtractedContent[]
+  articles          Article[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("source_urls")
+}
+
+model UploadedDocument {
+  id            String                 @id @default(cuid())
+  fileName      String
+  fileType      String
+  fileUrl       String
+  fileSizeBytes Int                    @default(0)
+  storageKey    String?
+  topic         String?
+  status        UploadedDocumentStatus @default(PENDING)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  extractedContents ExtractedContent[]
+  articles          Article[]
+
+  @@index([status])
+  @@map("uploaded_documents")
+}
+
+model ExtractedContent {
+  id                 String   @id @default(cuid())
+  sourceUrlId        String?
+  uploadedDocumentId String?
+  title              String?
+  rawContent         String   @db.Text
+  metadata           Json?
+  createdAt          DateTime @default(now())
+
+  sourceUrl        SourceUrl?        @relation(fields: [sourceUrlId], references: [id], onDelete: Cascade)
+  uploadedDocument UploadedDocument? @relation(fields: [uploadedDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([sourceUrlId])
+  @@index([uploadedDocumentId])
+  @@map("extracted_contents")
+}
+
+model Article {
+  id                 String          @id @default(cuid())
+  title              String
+  slug               String          @unique
+  summary            String?         @db.Text
+  content            String?         @db.Text
+  seoTitle           String?
+  metaDescription    String?         @db.Text
+  tags               String[]        @default([])
+  sourceType         ArticleSourceType
+  sourceUrlId        String?
+  uploadedDocumentId String?
+  status             ArticleStatus   @default(DRAFT)
+  publishedAt        DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  sourceUrl        SourceUrl?        @relation(fields: [sourceUrlId], references: [id], onDelete: SetNull)
+  uploadedDocument UploadedDocument? @relation(fields: [uploadedDocumentId], references: [id], onDelete: SetNull)
+  revisions        ArticleRevision[]
+  socialPosts      SocialPost[]
+
+  @@index([status])
+  @@index([sourceType])
+  @@index([publishedAt])
+  @@map("articles")
+}
+
+model ArticleRevision {
+  id             String   @id @default(cuid())
+  articleId      String
+  revisionNumber Int
+  title          String
+  summary        String?  @db.Text
+  content        String?  @db.Text
+  seoTitle       String?
+  metaDescription String? @db.Text
+  tags           String[] @default([])
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([articleId, revisionNumber])
+  @@index([articleId])
+  @@map("article_revisions")
+}
+
+model InstagramAccount {
+  id                         String               @id @default(cuid())
+  userId                     String?
+  username                   String
+  displayName                String?
+  accountType                InstagramAccountType @default(BUSINESS)
+  instagramBusinessAccountId String               @unique
+  facebookPageId             String
+  facebookPageName           String?
+  accessTokenCiphertext      String               @db.Text
+  accessTokenIv              String
+  accessTokenAuthTag         String
+  tokenExpiresAt             DateTime?
+  scopes                     String[]             @default([])
+  connectionMetadata         Json?
+  isActive                   Boolean              @default(true)
+  connectedAt                DateTime             @default(now())
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  socialPosts SocialPost[]
+
+  @@unique([username])
+  @@index([isActive])
+  @@map("instagram_accounts")
+}
+
+model SocialPost {
+  id                     String           @id @default(cuid())
+  articleId              String
+  instagramAccountId     String?
+  platform               SocialPlatform   @default(INSTAGRAM)
+  caption                String           @db.Text
+  storyText              String?          @db.Text
+  carouselSlides         Json?
+  hashtags               String[]         @default([])
+  taggedUsers            String[]         @default([])
+  visualDirection        String?          @db.Text
+  postImagePrompt        String?          @db.Text
+  storyImagePrompt       String?          @db.Text
+  carouselImagePrompts   Json?
+  postImageUrl           String?
+  storyImageUrl          String?
+  carouselImageUrls      Json?
+  postImageStorageKey    String?
+  storyImageStorageKey   String?
+  carouselImageStorageKeys Json?
+  imageStylePreset         String           @default("cinematic_tech")
+  status                 SocialPostStatus @default(DRAFT)
+  approvedAt             DateTime?
+  rejectedAt             DateTime?
+  scheduledAt            DateTime?
+  publishedAt            DateTime?
+  externalPostId         String?
+  externalStoryId        String?
+  publishError           String?          @db.Text
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  article          Article           @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount? @relation(fields: [instagramAccountId], references: [id], onDelete: SetNull)
+  socialAssets     SocialAsset[]
+  zapierWebhookLogs ZapierWebhookLog[]
+  socialAssetUploadLogs SocialAssetUploadLog[]
+
+  @@unique([articleId, platform])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("social_posts")
+}
+
+model SocialAsset {
+  id              String                   @id @default(cuid())
+  socialPostId    String
+  assetKey        String
+  generationType  SocialAssetGenerationType
+  blobPath        String?
+  publicUrl       String?
+  storageProvider String?
+  mimeType        String
+  detectedMimeType String?
+  fileName        String
+  fileSizeBytes   Int?
+  width           Int?
+  height          Int?
+  blobValidationOk Boolean?
+  blobValidationMessage String? @db.Text
+  uploadStatus    SocialAssetUploadStatus  @default(PENDING)
+  uploadError     String?                  @db.Text
+  uploadedAt      DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  socialPost SocialPost @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+
+  @@unique([socialPostId, assetKey])
+  @@index([socialPostId])
+  @@index([uploadStatus])
+  @@map("social_assets")
+}
+
+model StorageProviderConfig {
+  id                         String   @id @default("azure_blob")
+  providerName               String   @default("azure_blob")
+  storageAccountName         String?
+  connectionStringCiphertext String?  @db.Text
+  connectionStringIv         String?
+  connectionStringAuthTag    String?
+  containerName              String   @default("instagram-assets")
+  publicBaseUrl              String?
+  enablePublicUrls           Boolean  @default(true)
+  isActive                   Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@map("storage_provider_configs")
+}
+
+model SocialAssetUploadLog {
+  id           String    @id @default(cuid())
+  socialPostId String
+  socialAssetId String?
+  assetKey     String?
+  status       JobStatus
+  message      String    @db.Text
+  retryCount   Int       @default(0)
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+
+  socialPost SocialPost @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+
+  @@index([socialPostId])
+  @@index([createdAt])
+  @@map("social_asset_upload_logs")
+}
+
+model ZapierIntegrationConfig {
+  id                   String   @id @default("default")
+  displayName          String   @default("Zapier")
+  isActive             Boolean  @default(false)
+  webhookUrlCiphertext String?  @db.Text
+  webhookUrlIv         String?
+  webhookUrlAuthTag    String?
+  timeoutMs            Int      @default(30000)
+  maxRetries           Int      @default(3)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("zapier_integration_configs")
+}
+
+model ZapierWebhookLog {
+  id                    String   @id @default(cuid())
+  socialPostId          String
+  articleId             String?
+  provider              String   @default("zapier")
+  requestPayload        Json
+  requestPayloadPreview Json?
+  postImageUrl          String?
+  webhookUrlMasked      String?
+  responseStatus        Int?
+  responseBody          String?  @db.Text
+  responseHeaders       Json?
+  durationMs            Int?
+  sentAt                DateTime @default(now())
+  retryCount            Int      @default(0)
+  errorCode             String?
+  errorMessage          String?  @db.Text
+  suggestedAction       String?  @db.Text
+  success               Boolean  @default(false)
+
+  socialPost SocialPost @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+
+  @@index([socialPostId])
+  @@index([sentAt])
+  @@map("zapier_webhook_logs")
+}
+
+model JobLog {
+  id        String    @id @default(cuid())
+  userId    String?
+  type      String
+  status    JobStatus
+  message   String    @db.Text
+  duration  String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("job_logs")
+}
+
+model DocumentExtractionConfig {
+  id               String                     @id @default(cuid())
+  provider         DocumentExtractionProvider @unique
+  displayName      String
+  isActive         Boolean                    @default(false)
+  endpoint         String?
+  apiKeyCiphertext String?                    @db.Text
+  apiKeyIv         String?
+  apiKeyAuthTag    String?
+  apiVersion       String                     @default("2024-11-30")
+  timeoutMs        Int                        @default(120000)
+  pollIntervalMs   Int                        @default(2000)
+  maxPollAttempts  Int                        @default(90)
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@map("document_extraction_configs")
+}
+
+model AiProviderConfig {
+  id               String     @id @default(cuid())
+  provider         AiProvider @unique
+  displayName      String
+  isActive         Boolean    @default(false)
+  endpoint         String?
+  apiKeyCiphertext String?    @db.Text
+  apiKeyIv         String?
+  apiKeyAuthTag    String?
+  deploymentName   String?
+  apiVersion       String     @default("2024-08-01-preview")
+  temperature      Float      @default(0.7)
+  maxTokens        Int        @default(4096)
+  timeoutMs        Int        @default(120000)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@map("ai_provider_configs")
+}
+
+model ImageProviderConfig {
+  id               String                  @id @default(cuid())
+  provider         ImageGenerationProvider @unique
+  displayName      String
+  isActive         Boolean                 @default(false)
+  apiKeyCiphertext String?                 @db.Text
+  apiKeyIv         String?
+  apiKeyAuthTag    String?
+  model            String                  @default("gpt-image-1")
+  quality          String                  @default("high")
+  outputFormat     String                  @default("jpeg")
+  timeoutMs        Int                     @default(120000)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@map("image_provider_configs")
+}
+
+model ApiUsageLog {
+  id           String         @id @default(cuid())
+  userId       String?
+  provider     String
+  endpoint     String?
+  model        String?
+  inputTokens  Int?
+  outputTokens Int?
+  totalTokens  Int?
+  costUsd      Decimal?       @db.Decimal(10, 6)
+  status       ApiUsageStatus @default(SUCCESS)
+  metadata     Json?
+  createdAt    DateTime       @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([provider])
+  @@index([createdAt])
+  @@map("api_usage_logs")
+}

@@ -1,0 +1,30 @@
+---
+description: Planning, scoped changes, and post-task handoff for CloudContent TR
+alwaysApply: true
+---
+
+# CloudContent TR — Workflow
+
+## Before coding
+
+- **Explain the plan first** — scope, files to touch, server vs client split, env vars, mock vs Prisma/API. Do not implement features until the approach is clear (unless the user asks to proceed immediately).
+
+## While coding
+
+- **Modify only the necessary files** — no drive-by refactors, unrelated formatting, or new docs unless requested.
+- Match existing patterns: `@/` imports, `PageHeader`, shadcn components, `src/lib/mock`.
+
+## After every task
+
+Always end with:
+
+1. **Files changed** — bullet list of paths.
+2. **What to test** — concrete steps (`npm run build`, `npm run dev`, URLs, expected behavior).
+
+## Common commands
+
+```bash
+npm run dev      # http://localhost:3000/dashboard
+npm run build
+npm run db:push  # requires PostgreSQL + DATABASE_URL
+```

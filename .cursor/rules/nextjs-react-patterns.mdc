@@ -1,0 +1,35 @@
+---
+description: Server vs client components and page patterns for TSX files
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# Next.js & React Patterns
+
+## Server vs client
+
+```tsx
+// ✅ Server (default) — no "use client", no hooks
+export default function ArticlesPage() {
+  return <ArticlesTable data={mockArticles} />
+}
+
+// ✅ Client — only when interactive
+"use client"
+export function AddSourceForm() {
+  const [url, setUrl] = useState("")
+  return <Input value={url} onChange={(e) => setUrl(e.target.value)} />
+}
+```
+
+## Rules
+
+- Export `metadata` from server `page.tsx` when titles/SEO matter.
+- Use `PageHeader` on `(platform)` pages; pass toolbar actions via `actions`.
+- Navigate with `next/link`; active sidebar via `isActivePath()` in `src/lib/navigation.ts`.
+
+## Do not
+
+- Mark full pages `"use client"` when only a child needs interactivity.
+- Import `prisma` or read secrets in client components.
+- Hardcode API keys — use `process.env` on the server only.

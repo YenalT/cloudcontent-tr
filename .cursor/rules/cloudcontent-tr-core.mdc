@@ -1,0 +1,42 @@
+---
+description: CloudContent TR stack, architecture, UI, and security standards
+alwaysApply: true
+---
+
+# CloudContent TR — Core Standards
+
+## Language & framework
+
+- **Always use TypeScript** — no new `.js` files; keep types strict under `src/`.
+- **Next.js App Router** — routes in `src/app/`; shared layouts via route groups (e.g. `(platform)`).
+- **Server Components by default** — pages and data loading stay on the server unless browser APIs are required.
+- **Client Components only for interactivity** — add `"use client"` only for hooks, events, or local UI state; prefer small client children over entire pages.
+
+## UI & styling
+
+- **shadcn/ui** — use `@/components/ui/*`; do not reinvent primitives (Button, Card, Table, etc.).
+- **Tailwind CSS** — utility-first styling; use theme tokens from `src/app/globals.css` (`bg-background`, `text-muted-foreground`, `bg-sidebar`, etc.).
+- **Small, reusable components** — colocate by role:
+  - `src/components/ui/` — shadcn
+  - `src/components/layout/` — shell, sidebar
+  - `src/components/shared/` — PageHeader, StatCard, StatusBadge, EmptyState
+  - `src/components/dashboard/` — feature blocks
+
+## Secrets & configuration
+
+- **Do not hardcode API keys** or secrets in source.
+- **Use environment variables** (`DATABASE_URL`, future AI keys, etc.) via `.env` / `.env.local`; document new vars in `.env.example`.
+- Never expose server-only env vars to client components (`NEXT_PUBLIC_` only when truly public).
+
+## Data layer
+
+- Mock UI data: `src/lib/mock/` until real APIs exist.
+- Prisma + PostgreSQL: `prisma/schema.prisma`, client in `src/lib/prisma.ts` — use from Server Components or Route Handlers only.
+
+## Layout reference
+
+```
+src/app/(platform)/  → /dashboard, /sources, /uploads, /articles, …
+src/lib/brand.ts     → product naming
+src/lib/navigation.ts → sidebar routes
+```

@@ -18,6 +18,7 @@ on:
 
 env:
   NODE_VERSION: "20.x"
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
 jobs:
   build-and-deploy:
@@ -53,6 +54,7 @@ jobs:
       - name: Build
         env:
           NODE_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npm run build
 
       - name: Login to Azure

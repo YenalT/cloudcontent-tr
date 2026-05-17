@@ -16,6 +16,7 @@ cp -R "$ROOT/.next/static" "$STANDALONE/.next/static"
 cp -R "$ROOT/prisma" "$STANDALONE/prisma"
 cp "$ROOT/startup.sh" "$STANDALONE/startup.sh"
 chmod +x "$STANDALONE/startup.sh"
+cp "$ROOT/deploy/azure-standalone.deployment" "$STANDALONE/.deployment"
 
 echo "Standalone assets copied to $STANDALONE"
 echo "Azure startup (standalone-only deploy): bash startup.sh  OR  node server.js"

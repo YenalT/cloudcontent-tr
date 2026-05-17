@@ -105,14 +105,22 @@ If using **Oryx** only (no Actions workflow), set:
 4. `npm run build` — `prisma generate && next build && copy standalone assets`
 5. Deploy **`.next/standalone`** to App Service (includes `server.js`, `startup.sh`, traced `node_modules`)
 
-**Azure App Service application settings** (zip / Oryx deploy without pre-built artifact):
+**Azure App Service application settings**
 
-| Setting | Value |
-|---------|--------|
-| `SCM_DO_BUILD_DURING_DEPLOYMENT` | `true` — run `npm install` and build during deployment |
-| `WEBSITE_NODE_DEFAULT_VERSION` | `~20` |
+| Deploy type | `SCM_DO_BUILD_DURING_DEPLOYMENT` | Notes |
+|-------------|----------------------------------|--------|
+| **GitHub Actions → `.next/standalone`** | **`false`** (required) | Build already ran in CI; Oryx must not run `next build` on the zip |
+| **Full repo zip / Oryx on App Service** | `true` | App Service runs `npm install` + `npm run build` (needs full `src/app` in zip) |
 
-The repo includes `.deployment` with `SCM_DO_BUILD_DURING_DEPLOYMENT=true` for Kudu/Oryx.
+Also set `WEBSITE_NODE_DEFAULT_VERSION` = `~20` for Oryx source deploys.
+
+The standalone artifact includes `.deployment` with `SCM_DO_BUILD_DURING_DEPLOYMENT=false`. If Azure Portal has this setting set to **`true`**, it overrides the file and causes:
+
+```text
+Couldn't find any `pages` or `app` directory
+```
+
+→ Set **`SCM_DO_BUILD_DURING_DEPLOYMENT`** = **`false`** in Portal when using GitHub Actions standalone deploy.
 
 **Do not** set the startup command to `next start` alone — use `bash startup.sh` (starts `node server.js` for standalone, or `npm run start` with a resolved Next binary).
 
@@ -318,6 +326,7 @@ Paste JSON into `AZURE_CREDENTIALS` secret. **Do not commit.**
 | Zapier image error | `APP_PUBLIC_URL` HTTPS; blob public read; re-run **Optimize for Instagram** |
 | 502 Bad Gateway | Startup command, Node 20, build succeeded |
 | `sh: 1: next: not found` | Use startup `bash startup.sh`; deploy `.next/standalone` from CI; or run `npm ci --omit=dev` on Azure; ensure `next` is in `dependencies` |
+| `Couldn't find any pages or app directory` | Oryx rebuilt a **standalone** zip — set `SCM_DO_BUILD_DURING_DEPLOYMENT=false` in Azure Portal; redeploy from GitHub Actions |
 
 ---
 

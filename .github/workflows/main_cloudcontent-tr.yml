@@ -67,6 +67,12 @@ jobs:
         with:
           name: node-app
 
+      - name: Disable Oryx rebuild (pre-built standalone)
+        run: |
+          test -f server.js || (echo "Deploy artifact must contain server.js from .next/standalone" && exit 1)
+          printf '%s\n' '[config]' 'SCM_DO_BUILD_DURING_DEPLOYMENT=false' > .deployment
+          cat .deployment
+
       - name: Login to Azure
         uses: azure/login@v2
         with:

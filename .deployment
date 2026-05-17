@@ -1,3 +1,8 @@
 [config]
-# Run Oryx build on zip / artifact deploy when node_modules is not pre-bundled.
-SCM_DO_BUILD_DURING_DEPLOYMENT=true
+# GitHub Actions deploys pre-built .next/standalone (no src/app here).
+# Oryx must NOT run "next build" on that zip or you get:
+#   Couldn't find any `pages` or `app` directory
+SCM_DO_BUILD_DURING_DEPLOYMENT=false
+
+# Full-repo zip deploy (build on App Service): override in Azure Portal →
+# Application settings → SCM_DO_BUILD_DURING_DEPLOYMENT = true

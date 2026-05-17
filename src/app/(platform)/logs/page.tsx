@@ -12,6 +12,8 @@ import {
 import { mockJobLogs } from "@/lib/mock"
 import { formatDate } from "@/lib/utils"
 
+export const dynamic = "force-dynamic"
+
 export default function LogsPage() {
   return (
     <>

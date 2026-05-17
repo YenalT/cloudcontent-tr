@@ -11,7 +11,13 @@ datasource db {
 }
 ```
 
-Prisma CLI and the Next.js app (`src/lib/prisma.ts`) both read **`DATABASE_URL`** from **`.env`** in the project root.
+Prisma CLI and the Next.js app (`src/lib/prisma.ts`) both read **`DATABASE_URL`** from the environment.
+
+- **Local:** Prisma loads **`.env`** in the project root (gitignored).
+- **Production (Azure App Service):** set **`DATABASE_URL`** under **Configuration → Environment variables** — see [README_GITHUB_AZURE_DEPLOYMENT.md](../README_GITHUB_AZURE_DEPLOYMENT.md).
+- **CI:** GitHub Actions secret **`DATABASE_URL`** (validated before `prisma migrate deploy`).
+
+A blank App Service setting or missing secret is passed as an **empty string** and fails with a clear error from `npm run db:ensure-url` / `startup.sh`.
 
 Expected local URL:
 

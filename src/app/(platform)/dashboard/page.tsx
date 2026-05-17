@@ -7,6 +7,9 @@ import {
 import { PageHeader } from "@/components/shared/page-header"
 import { getDashboardReportBundle } from "@/lib/data/dashboard"
 
+/** Avoid static prerender at build time (Prisma requires DATABASE_URL at runtime only). */
+export const dynamic = "force-dynamic"
+
 async function DashboardReportContent() {
   const report = await getDashboardReportBundle()
 

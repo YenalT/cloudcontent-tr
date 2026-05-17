@@ -7,8 +7,19 @@ cd "$(dirname "$0")"
 echo "[startup] CloudContent TR — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "[startup] NODE_ENV=${NODE_ENV:-unset} PORT=${PORT:-3000}"
 
-if [ -z "${DATABASE_URL:-}" ]; then
-  echo "[startup] ERROR: DATABASE_URL is not set."
+# Prisma treats whitespace-only DATABASE_URL as set but invalid (empty string).
+if [ -z "${DATABASE_URL:-}" ] || [ -z "$(printf '%s' "${DATABASE_URL}" | tr -d '[:space:]')" ]; then
+  echo "[startup] ERROR: DATABASE_URL is missing or empty."
+  echo ""
+  echo "Set DATABASE_URL in Azure Portal:"
+  echo "  App Service → Settings → Environment variables → + Add"
+  echo "  Name:  DATABASE_URL"
+  echo "  Value: postgresql://USER:PASSWORD@HOST.postgres.database.azure.com:5432/cloudcontent_tr?schema=public&sslmode=require"
+  echo ""
+  echo "Click Apply, confirm the restart, then check Log stream again."
+  echo "Do not leave DATABASE_URL as an empty Application setting — that blocks Prisma."
+  echo ""
+  echo "See README_GITHUB_AZURE_DEPLOYMENT.md → \"Set DATABASE_URL in Azure App Service\"."
   exit 1
 fi
 

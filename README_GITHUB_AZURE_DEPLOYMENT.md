@@ -92,9 +92,47 @@ If using **Oryx** only (no Actions workflow), set:
 
 ## 4. Application settings (App Service → Configuration)
 
+### Set `DATABASE_URL` in Azure App Service (required)
+
+Prisma and the app read **`DATABASE_URL` only from environment variables** in production (not from committed files). If the setting exists but **Value is blank**, Prisma receives an empty string and `migrate deploy` fails.
+
+1. Sign in to [Azure Portal](https://portal.azure.com).
+2. Open **App Services** → select your web app (e.g. `cloudcontent-tr-prod`).
+3. In the left menu, open **Settings** → **Environment variables**  
+   (on older blades: **Configuration** → **Application settings** tab).
+4. Under **App settings**, click **+ Add**.
+5. Set:
+   - **Name:** `DATABASE_URL` (exact spelling, case-sensitive)
+   - **Value:** your PostgreSQL connection string, for example:
+
+```text
+postgresql://cloudadmin:YOUR_PASSWORD@your-server.postgres.database.azure.com:5432/cloudcontent_tr?schema=public&sslmode=require
+```
+
+6. Replace `cloudadmin`, `YOUR_PASSWORD`, and `your-server` with your Flexible Server admin user, password, and hostname.
+7. Click **Apply** at the bottom, then **Confirm** when prompted (the app restarts).
+8. Open **Monitoring** → **Log stream** and redeploy or restart. You should **not** see `[startup] ERROR: DATABASE_URL is missing or empty`.
+
+**Checklist**
+
+- [ ] `DATABASE_URL` appears in Application settings with a **non-empty** value
+- [ ] Connection string includes `sslmode=require` for Azure Database for PostgreSQL
+- [ ] Database name is `cloudcontent_tr` (or the name you created)
+- [ ] PostgreSQL **Networking** allows Azure services (and the app can reach the server)
+- [ ] Password special characters are [URL-encoded](https://www.w3schools.com/tags/ref_urlencode.asp) in the connection string if needed
+
+**Copy connection string from Azure (optional)**
+
+1. Azure Portal → your **PostgreSQL flexible server** → **Connect**
+2. Choose database `cloudcontent_tr`, copy the ADO.NET or connection info, then format as a `postgresql://` URL as shown above.
+
+**Do not** add `DATABASE_URL` to the GitHub repository. For CI migrations, use a **GitHub Actions secret** (see [§9](#9-github-actions-secrets-optional-workflow)).
+
+---
+
 | Setting | Required | Example / notes |
 |---------|----------|-----------------|
-| `DATABASE_URL` | Yes | Azure PostgreSQL URL with `sslmode=require` |
+| `DATABASE_URL` | Yes | Azure PostgreSQL URL with `sslmode=require` (see steps above) |
 | `SETTINGS_ENCRYPTION_KEY` | Yes | 32+ char random secret |
 | `NODE_ENV` | Yes | `production` |
 | `APP_URL` | Yes | `https://YOUR_APP.azurewebsites.net` |
@@ -148,7 +186,13 @@ Migrations run on each app start via `startup.sh`.
 
 ### Option B — GitHub Actions (workflow included)
 
-Set GitHub secret `DATABASE_URL` — workflow runs `npm run prisma:migrate:deploy` before deploy.
+1. GitHub → repository → **Settings** → **Secrets and variables** → **Actions**
+2. **New repository secret**
+   - **Name:** `DATABASE_URL`
+   - **Secret:** same PostgreSQL URL as Azure (`sslmode=require`)
+3. Push to `main` or run the workflow manually.
+
+The workflow validates the secret (fails fast if missing/empty), then runs `npm run prisma:migrate:deploy` with `DATABASE_URL` from secrets.
 
 ### Option C — manual (one-off)
 
@@ -198,7 +242,9 @@ npm run start
 |--------|-------------|
 | `AZURE_WEBAPP_NAME` | App Service name |
 | `AZURE_CREDENTIALS` | Service principal JSON for `azure/login` |
-| `DATABASE_URL` | For migrate deploy in CI |
+| `DATABASE_URL` | **Required** for `prisma migrate deploy` in CI — same value as App Service `DATABASE_URL` |
+
+If `DATABASE_URL` is not configured as a secret, GitHub passes an empty string and the **Validate DATABASE_URL secret** step fails with instructions (no credentials are printed).
 
 Create service principal:
 
@@ -229,7 +275,8 @@ Paste JSON into `AZURE_CREDENTIALS` secret. **Do not commit.**
 | Symptom | Fix |
 |---------|-----|
 | App won’t start | Check Log stream; verify `DATABASE_URL`, `PORT` |
-| Prisma migrate fails | Firewall, SSL mode, credentials |
+| `DATABASE_URL` missing / empty | App Service → Environment variables: set non-empty `DATABASE_URL`; or add GitHub secret for CI |
+| Prisma migrate fails | Firewall, `sslmode=require`, credentials, empty App Setting value |
 | Upload fails | `STORAGE_PROVIDER=azure`, connection string, container exists |
 | Zapier image error | `APP_PUBLIC_URL` HTTPS; blob public read; re-run **Optimize for Instagram** |
 | 502 Bad Gateway | Startup command, Node 20, build succeeded |

@@ -1,12 +1,14 @@
 import "server-only"
 
 /**
- * True when running on Azure App Service or explicit production Node env.
+ * True when running in a deployed production runtime (not during `next build`).
  * WEBSITE_SITE_NAME is set by Azure App Service.
  */
 export function isProductionDeployment(): boolean {
+  if (process.env.NEXT_PHASE === "phase-production-build") return false
+  if (process.env.WEBSITE_SITE_NAME?.trim()) return true
   if (process.env.NODE_ENV === "production") return true
-  return Boolean(process.env.WEBSITE_SITE_NAME?.trim())
+  return false
 }
 
 export function requireAzureStorageInProduction(): void {

@@ -88,6 +88,34 @@ If using **Oryx** only (no Actions workflow), set:
 
 - **Startup Command**: `bash startup.sh`
 
+### Node.js dependencies & build (required)
+
+`next`, `react`, and `react-dom` must be in **`dependencies`** (not `devDependencies`) so production installs include the Next.js runtime.
+
+| Deploy method | Build on CI | Install on Azure | Startup |
+|---------------|-------------|------------------|---------|
+| **GitHub Actions** (recommended) | `npm ci` → `npm run build` | Artifact = `.next/standalone` (pre-built) | `bash startup.sh` |
+| **Zip / Oryx** | Oryx runs `npm install` + `npm run build` on App Service | Set `SCM_DO_BUILD_DURING_DEPLOYMENT=true` | `bash startup.sh` |
+
+**GitHub Actions** (`.github/workflows/main_cloudcontent-tr.yml`):
+
+1. `npm ci` — installs from committed `package-lock.json`
+2. `npx prisma generate`
+3. `npm run prisma:migrate:deploy` (uses `DATABASE_URL` secret)
+4. `npm run build` — `prisma generate && next build && copy standalone assets`
+5. Deploy **`.next/standalone`** to App Service (includes `server.js`, `startup.sh`, traced `node_modules`)
+
+**Azure App Service application settings** (zip / Oryx deploy without pre-built artifact):
+
+| Setting | Value |
+|---------|--------|
+| `SCM_DO_BUILD_DURING_DEPLOYMENT` | `true` — run `npm install` and build during deployment |
+| `WEBSITE_NODE_DEFAULT_VERSION` | `~20` |
+
+The repo includes `.deployment` with `SCM_DO_BUILD_DURING_DEPLOYMENT=true` for Kudu/Oryx.
+
+**Do not** set the startup command to `next start` alone — use `bash startup.sh` (starts `node server.js` for standalone, or `npm run start` with a resolved Next binary).
+
 ---
 
 ## 4. Application settings (App Service → Configuration)
@@ -163,7 +191,8 @@ bash startup.sh
 `startup.sh` will:
 
 1. Run `npx prisma migrate deploy`
-2. Start Next.js standalone (`node .next/standalone/server.js`) or `npm run start`
+2. Prefer **`node server.js`** (standalone deploy — no `next` CLI on PATH)
+3. Else run `npm ci --omit=dev` if `node_modules/next` is missing, then `npm run start` (uses `node node_modules/next/dist/bin/next`)
 
 Make `startup.sh` executable if needed:
 
@@ -206,20 +235,28 @@ npx prisma migrate deploy
 
 ## 7. Build & start commands (Oryx)
 
-If using Oryx without custom workflow:
+If using Oryx without a GitHub Actions build:
 
 | Setting | Value |
 |---------|--------|
-| Build command | `npm run build` |
-| Output | `.next` (standalone copied by `scripts/copy-standalone-assets.sh`) |
+| `SCM_DO_BUILD_DURING_DEPLOYMENT` | `true` |
+| Build command | `npm run build` (runs `prisma generate`, `next build`, copies standalone assets) |
 | Startup | `bash startup.sh` |
+
+`package.json` scripts:
+
+```json
+"build": "prisma generate && next build && bash scripts/copy-standalone-assets.sh",
+"start": "node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT:-8080}",
+"postinstall": "prisma generate"
+```
 
 Local verification:
 
 ```bash
 npm ci
 npm run build
-npm run start
+PORT=3000 npm run start
 # http://localhost:3000
 ```
 
@@ -280,6 +317,7 @@ Paste JSON into `AZURE_CREDENTIALS` secret. **Do not commit.**
 | Upload fails | `STORAGE_PROVIDER=azure`, connection string, container exists |
 | Zapier image error | `APP_PUBLIC_URL` HTTPS; blob public read; re-run **Optimize for Instagram** |
 | 502 Bad Gateway | Startup command, Node 20, build succeeded |
+| `sh: 1: next: not found` | Use startup `bash startup.sh`; deploy `.next/standalone` from CI; or run `npm ci --omit=dev` on Azure; ensure `next` is in `dependencies` |
 
 ---
 

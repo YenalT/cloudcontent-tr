@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Azure App Service startup — migrations then Next.js (standalone or npm start).
+# Azure App Service startup — migrations then Next.js (standalone preferred).
 set -euo pipefail
 
 cd "$(dirname "$0")"
+APP_ROOT="$(pwd)"
 
 echo "[startup] CloudContent TR — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-echo "[startup] NODE_ENV=${NODE_ENV:-unset} PORT=${PORT:-3000}"
+echo "[startup] NODE_ENV=${NODE_ENV:-unset} PORT=${PORT:-8080}"
+echo "[startup] cwd=$APP_ROOT"
 
 # Prisma treats whitespace-only DATABASE_URL as set but invalid (empty string).
 if [ -z "${DATABASE_URL:-}" ] || [ -z "$(printf '%s' "${DATABASE_URL}" | tr -d '[:space:]')" ]; then
@@ -16,33 +18,45 @@ if [ -z "${DATABASE_URL:-}" ] || [ -z "$(printf '%s' "${DATABASE_URL}" | tr -d '
   echo "  Name:  DATABASE_URL"
   echo "  Value: postgresql://USER:PASSWORD@HOST.postgres.database.azure.com:5432/cloudcontent_tr?schema=public&sslmode=require"
   echo ""
-  echo "Click Apply, confirm the restart, then check Log stream again."
-  echo "Do not leave DATABASE_URL as an empty Application setting — that blocks Prisma."
-  echo ""
   echo "See README_GITHUB_AZURE_DEPLOYMENT.md → \"Set DATABASE_URL in Azure App Service\"."
   exit 1
 fi
 
-if [ -f "prisma/schema.prisma" ] && command -v npx >/dev/null 2>&1; then
+if [ -f "$APP_ROOT/prisma/schema.prisma" ] && command -v npx >/dev/null 2>&1; then
   echo "[startup] Running Prisma migrations (migrate deploy)..."
   npx prisma migrate deploy
 else
-  echo "[startup] Skipping migrations (no prisma/schema or run migrations in CI)."
+  echo "[startup] Skipping migrations (no prisma/schema or npx unavailable)."
 fi
 
-if [ -f "server.js" ]; then
-  export HOSTNAME="${HOSTNAME:-0.0.0.0}"
-  export PORT="${PORT:-3000}"
-  echo "[startup] Starting Next.js standalone on port $PORT"
-  exec node server.js
+export HOSTNAME="${HOSTNAME:-0.0.0.0}"
+export PORT="${PORT:-8080}"
+
+# Prefer Next.js standalone server (no `next` CLI required — recommended for Azure).
+if [ -f "$APP_ROOT/server.js" ]; then
+  echo "[startup] Starting Next.js standalone: node server.js (port $PORT)"
+  exec node "$APP_ROOT/server.js"
 fi
 
-if [ -f ".next/standalone/server.js" ]; then
-  export HOSTNAME="${HOSTNAME:-0.0.0.0}"
-  export PORT="${PORT:-3000}"
-  echo "[startup] Starting Next.js standalone on port $PORT"
-  exec node .next/standalone/server.js
+if [ -f "$APP_ROOT/.next/standalone/server.js" ]; then
+  echo "[startup] Starting Next.js standalone: node .next/standalone/server.js (port $PORT)"
+  exec node "$APP_ROOT/.next/standalone/server.js"
 fi
 
-echo "[startup] Starting Next.js via npm start"
+# Full-repo deploy: ensure production dependencies (fixes "next: not found").
+if [ ! -f "$APP_ROOT/node_modules/next/package.json" ]; then
+  echo "[startup] node_modules/next missing — installing production dependencies..."
+  if [ -f "$APP_ROOT/package-lock.json" ]; then
+    npm ci --omit=dev
+  else
+    npm install --omit=dev
+  fi
+fi
+
+if [ ! -f "$APP_ROOT/node_modules/next/package.json" ]; then
+  echo "[startup] ERROR: next is not installed. Run npm ci on deploy or use standalone output (.next/standalone)."
+  exit 1
+fi
+
+echo "[startup] Starting Next.js via npm run start (port $PORT)"
 exec npm run start

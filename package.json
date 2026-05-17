@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build && bash scripts/copy-standalone-assets.sh",
-    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "start": "node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT:-8080}",
     "lint": "tsc --noEmit",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
